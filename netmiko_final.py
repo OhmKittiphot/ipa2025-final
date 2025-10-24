@@ -50,14 +50,12 @@ def gigabit_status():
 def read_motd(ip: str, username: str = None, password: str = None) -> str:
     """
     อ่านค่า MOTD:
-      1) ลอง 'show banner motd'
-      2) ถ้าไม่ได้ ค่อย parse จาก 'show running-config | s banner motd'
-    คืนค่า:
-      - ข้อความ MOTD
-      - หรือ "Error: No MOTD Configured" ถ้าไม่พบ
+      - ถ้าเจอ MOTD -> คืนข้อความ
+      - ถ้าไม่เจอ/มี error ใด ๆ -> คืน "Error: No MOTD Configured"
     """
     if not ip:
-        return "Error: No IP specified"
+        # ถ้าต้องการให้มาตรฐานทุก error เป็นข้อความเดียว ก็ส่งตรงนี้ด้วย
+        return "Error: No MOTD Configured"
 
     import os, re
     from netmiko import ConnectHandler
@@ -69,23 +67,34 @@ def read_motd(ip: str, username: str = None, password: str = None) -> str:
         "password": password or os.getenv("ROUTER_PASS", "cisco"),
         "fast_cli": True,
     }
+
     try:
         with ConnectHandler(**dev) as ssh:
+            # 1) ลองอ่านตรง ๆ
             out = ssh.send_command("show banner motd", use_textfsm=True)
             text = out if isinstance(out, str) else str(out)
             text = (text or "").strip()
+
             if text and "Invalid input" not in text and "Incomplete" not in text:
+                # ลบ delimiter เช่น ^C ถ้ามี
                 text_clean = re.sub(r"(?s)^\s*\^C\s*|\s*\^C\s*$", "", text).strip()
                 if text_clean:
                     return text_clean
 
+            # 2) Fallback: หาใน running-config
             run = ssh.send_command("show running-config | s banner motd", use_textfsm=True)
             run = run if isinstance(run, str) else str(run)
+
             m = re.search(r"banner\s+motd\s+(\S)\n(.*?)\n\1", run, flags=re.S)
             if m:
-                return m.group(2).strip()
+                motd_body = (m.group(2) or "").strip()
+                if motd_body:
+                    return motd_body
 
+            # ไม่เจอ MOTD
             return "Error: No MOTD Configured"
-    except Exception as e:
-        return f"Error: SSH connect failed ({e})"
+
+    except Exception:
+        # ไม่ว่า error อะไร ให้แสดงข้อความเดียวตามที่ต้องการ
+        return "Error: No MOTD Configured"
 
