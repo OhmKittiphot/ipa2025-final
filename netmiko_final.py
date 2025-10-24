@@ -2,9 +2,9 @@ from netmiko import ConnectHandler
 from pprint import pprint
 import os
 
-device_ip = os.getenv("ROUTER_IP", "10.0.15.61")
-username  = os.getenv("ROUTER_USER", "admin")
-password  = os.getenv("ROUTER_PASS", "cisco")
+device_ip = os.getenv("ROUTER_IP", "")
+username  = os.getenv("ROUTER_USER", "")
+password  = os.getenv("ROUTER_PASS", "")
 
 device_params = {
     "device_type": "cisco_ios",

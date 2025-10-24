@@ -6,10 +6,10 @@ import requests
 requests.packages.urllib3.disable_warnings()
 
 # ====== ENV & Base URLs ======
-ROUTER_IP   = os.getenv("ROUTER_IP", "10.0.15.61")   # IP ของ Router จะถูกเปลี่ยนทุกครั้งจาก ipa2024_final.py
-ROUTER_USER = os.getenv("ROUTER_USER", "admin")
-ROUTER_PASS = os.getenv("ROUTER_PASS", "cisco")
-STUDENT_ID  = os.getenv("STUDENT_ID", "66070123")    # ใช้สร้างชื่อ Loopback<studentID>
+ROUTER_IP   = os.getenv("ROUTER_IP", "")   # IP ของ Router จะถูกเปลี่ยนทุกครั้งจาก ipa2024_final.py
+ROUTER_USER = os.getenv("ROUTER_USER", "")
+ROUTER_PASS = os.getenv("ROUTER_PASS", "")
+STUDENT_ID  = os.getenv("STUDENT_ID", "")    # ใช้สร้างชื่อ Loopback<studentID>
 
 # RESTCONF base
 BASE = f"https://{ROUTER_IP}/restconf"
