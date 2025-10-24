@@ -1,0 +1,17 @@
+---
+- name: Get running-config from Cisco Router
+  hosts: routers
+  gather_facts: no
+
+  tasks:
+    - name: Collect running-config
+      cisco.ios.ios_command:
+        commands:
+          - show running-config
+      register: run_config
+
+    - name: Save running-config to local file
+      ansible.builtin.copy:
+        content: "{{ run_config.stdout[0] }}"
+        dest: "outputs/showrun_{{ inventory_hostname }}.txt"
+      delegate_to: localhost
