@@ -32,7 +32,7 @@ import ansible_final as ans           # Part 2 (showrun)
 requests.packages.urllib3.disable_warnings()  # ปิด SSL warnings
 
 # ===== Read ENV =====
-STUDENT_ID = os.environ.get("STUDENT_ID", "66070123")
+STUDENT_ID = os.environ.get("STUDENT_ID", "")
 
 ACCESS_TOKEN = os.environ.get("WEBEX_BOT_TOKEN", "")
 if not ACCESS_TOKEN:
