@@ -46,3 +46,46 @@ def gigabit_status():
 
         pprint(ans)
         return ans
+
+def read_motd(ip: str, username: str = None, password: str = None) -> str:
+    """
+    อ่านค่า MOTD:
+      1) ลอง 'show banner motd'
+      2) ถ้าไม่ได้ ค่อย parse จาก 'show running-config | s banner motd'
+    คืนค่า:
+      - ข้อความ MOTD
+      - หรือ "Error: No MOTD Configured" ถ้าไม่พบ
+    """
+    if not ip:
+        return "Error: No IP specified"
+
+    import os, re
+    from netmiko import ConnectHandler
+
+    dev = {
+        "device_type": "cisco_ios",
+        "ip": ip,
+        "username": username or os.getenv("ROUTER_USER", "admin"),
+        "password": password or os.getenv("ROUTER_PASS", "cisco"),
+        "fast_cli": True,
+    }
+    try:
+        with ConnectHandler(**dev) as ssh:
+            out = ssh.send_command("show banner motd", use_textfsm=True)
+            text = out if isinstance(out, str) else str(out)
+            text = (text or "").strip()
+            if text and "Invalid input" not in text and "Incomplete" not in text:
+                text_clean = re.sub(r"(?s)^\s*\^C\s*|\s*\^C\s*$", "", text).strip()
+                if text_clean:
+                    return text_clean
+
+            run = ssh.send_command("show running-config | s banner motd", use_textfsm=True)
+            run = run if isinstance(run, str) else str(run)
+            m = re.search(r"banner\s+motd\s+(\S)\n(.*?)\n\1", run, flags=re.S)
+            if m:
+                return m.group(2).strip()
+
+            return "Error: No MOTD Configured"
+    except Exception as e:
+        return f"Error: SSH connect failed ({e})"
+

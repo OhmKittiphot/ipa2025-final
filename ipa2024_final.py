@@ -1,38 +1,33 @@
 #######################################################################################
 # Yourname: Kittiphot Mongkolrat
-# Your student ID: 66070123
+# Your student ID: 66070239
 # Your GitHub Repo: https://github.com/OhmKittiphot/IPA2024-Final.git
 #
 # ipa2024_final.py
+# - รับคำสั่งจากห้อง Webex
 # - ต้อง "ตั้งค่า method" ก่อน (restconf | netconf) ด้วย /<SID> <method>
-# - จากนั้นสั่ง /<SID> <IP> <command>
-# - command: create | delete | enable | disable | status | gigabit_status | showrun
-# - ตอบ “using <Method>” เมื่อ success (ยกเว้น status จะ “(checked by <Method>)”)
+# - จากนั้นสั่ง /<SID> <IP> <command>  โดย command = create|delete|enable|disable|status|gigabit_status|showrun
+# - รูปแบบข้อความตอบกลับจะเติม "using <Method>" หรือ "(checked by <Method>)" ตามสเปคที่ให้มา
 #######################################################################################
 
-# ===== Load .env early =====
-import os as _os, os
-from dotenv import load_dotenv
-load_dotenv(dotenv_path=_os.path.join(_os.path.dirname(__file__), ".env"))
-
-# ===== Standard imports =====
+import os
 import re
 import time
 import json
 import importlib
 import requests
-from requests_toolbelt import MultipartEncoder  # สำหรับแนบไฟล์ให้ Webex
+from requests_toolbelt import MultipartEncoder  # สำหรับส่งไฟล์แนบให้ Webex
 
-# ===== Project modules =====
-import restconf_final as rest         # RESTCONF (Part 1)
-import netconf_final as net           # NETCONF  (Part 1)
-import netmiko_final as nm            # Part 2 (gigabit_status)
-import ansible_final as ans           # Part 2 (showrun)
+# โมดูลงานแต่ละส่วน
+import restconf_final as rest         # ต้องมีไฟล์ restconf_final.py
+import netconf_final as net           # ต้องมีไฟล์ netconf_final.py
+import netmiko_final as nm            # ต้องมีไฟล์ netmiko_final.py
+import ansible_final as ans           # ต้องมีไฟล์ ansible_final.py
 
 requests.packages.urllib3.disable_warnings()  # ปิด SSL warnings
 
-# ===== Read ENV =====
-STUDENT_ID = os.environ.get("STUDENT_ID", "")
+# ====== CONFIG (ENV) ======
+STUDENT_ID = os.environ.get("STUDENT_ID", "66070239")
 
 ACCESS_TOKEN = os.environ.get("WEBEX_BOT_TOKEN", "")
 if not ACCESS_TOKEN:
@@ -44,7 +39,7 @@ if not ROOM_ID:
 
 AUTH_HEADER = f"Bearer {ACCESS_TOKEN}"
 
-# ===== Runtime state =====
+# ====== STATE ======
 CURRENT_METHOD = None  # "restconf" | "netconf" | None
 IPV4_RE = re.compile(r"^\d{1,3}(?:\.\d{1,3}){3}$")
 
@@ -61,9 +56,9 @@ def _cap(s: str):
 
 
 def _send_text(text: str):
-    data = json.dumps({"roomId": ROOM_ID, "text": text})
+    postData = json.dumps({"roomId": ROOM_ID, "text": text})
     headers = {"Authorization": AUTH_HEADER, "Content-Type": "application/json"}
-    r = requests.post("https://webexapis.com/v1/messages", data=data, headers=headers, verify=False)
+    r = requests.post("https://webexapis.com/v1/messages", data=postData, headers=headers, verify=False)
     if r.status_code != 200:
         raise Exception(f"Incorrect reply from Webex Teams API. Status code: {r.status_code}")
 
@@ -73,8 +68,17 @@ def _send_file_with_text(text: str, filepath: str):
     fileobject = open(filepath, "rb")
     filetype = "text/plain"
     try:
-        mp = MultipartEncoder(fields={"roomId": ROOM_ID, "text": text, "files": (filename, fileobject, filetype)})
-        headers = {"Authorization": AUTH_HEADER, "Content-Type": mp.content_type}
+        mp = MultipartEncoder(
+            fields={
+                "roomId": ROOM_ID,
+                "text": text,
+                "files": (filename, fileobject, filetype),
+            }
+        )
+        headers = {
+            "Authorization": AUTH_HEADER,
+            "Content-Type": mp.content_type,
+        }
         r = requests.post("https://webexapis.com/v1/messages", data=mp, headers=headers, verify=False)
         if r.status_code != 200:
             raise Exception(f"Incorrect reply from Webex Teams API. Status code: {r.status_code}")
@@ -87,35 +91,58 @@ def _send_file_with_text(text: str, filepath: str):
 
 def _handle_message(message_text: str):
     """
-    สเปคการตอบ:
-    - ต้องตั้ง method ก่อน: "/<SID> restconf" หรือ "/<SID> netconf" -> "Ok: Restconf/Netconf"
-    - คำสั่งใช้งาน: "/<SID> <IP> <command>"
-      * ถ้าไม่มี method -> "Error: No method specified"
-      * ถ้าไม่มี IP   -> "Error: No IP specified"
-      * ถ้าใส่แค่ IP -> "Error: No command found."
-    - เติม "using <Method>" เมื่อ success (ยกเว้น status -> "(checked by <Method>)")
+    สเปคข้อความ:
+      - ตั้ง method: "/<SID> restconf" หรือ "/<SID> netconf" -> "Ok: Restconf/Netconf"
+      - ใช้งาน: "/<SID> <IP> <command>"
+        * ถ้าไม่มี method -> "Error: No method specified"
+        * ถ้าไม่มี IP -> "Error: No IP specified"
+        * ถ้าใส่แค่ IP -> "Error: No command found."
+      - success เติม "using <Method>" ยกเว้น status เติม "(checked by <Method>)"
     """
     global CURRENT_METHOD
 
+    # ต้องเริ่มด้วย /<SID>
     if not message_text.startswith(f"/{STUDENT_ID}"):
-        return  # ไม่ใช่คำสั่งของเรา
+        return
 
     parts = message_text.strip().split()
-    tokens = parts[1:]  # ตัด "/<SID>"
+    tokens = parts[1:]
 
-    # กรณีไม่มีอะไรต่อจาก /SID
     if not tokens:
         _send_text("Error: No method specified")
         return
 
-    # ตั้ง method: "/SID restconf" หรือ "/SID netconf"
+    # ตั้ง method
     maybe_method_only = _normalize_method(tokens[0])
     if len(tokens) == 1 and maybe_method_only:
         CURRENT_METHOD = maybe_method_only
         _send_text(f"Ok: {_cap(CURRENT_METHOD)}")
         return
 
-    # ยังไม่ได้ตั้ง method มาก่อน
+    # ----- NEW: MOTD โดยไม่ต้องตั้ง method -----
+    # /SID <IP> motd [<text>]
+    if IPV4_RE.match(tokens[0]) and len(tokens) >= 2 and tokens[1].lower() == "motd":
+        ip = tokens[0]
+        if len(tokens) > 2:
+            # set MOTD
+            text = " ".join(tokens[2:])
+            try:
+                result = ans.set_motd(ip, text)
+            except Exception as e:
+                result = f"Error: {e}"
+            _send_text(result)
+            return
+        else:
+            # read MOTD
+            try:
+                motd_text = nm.read_motd(ip)
+            except Exception as e:
+                motd_text = f"Error: {e}"
+            _send_text(motd_text)
+            return
+    # ----- END NEW -----
+
+    # ยังไม่ตั้ง method
     if not CURRENT_METHOD:
         _send_text("Error: No method specified")
         return
@@ -124,28 +151,27 @@ def _handle_message(message_text: str):
     ip = None
     cmd = None
 
-    # token แรกคาดหวังเป็น IP
+    # โทเค็นแรกต้องเป็น IP
     if IPV4_RE.match(tokens[0]):
         ip = tokens[0]
         if len(tokens) >= 2:
             cmd = tokens[1].lower().strip()
     else:
-        # ถ้าพิมพ์ method อีกรอบ (เปลี่ยน method ทันที)
         maybe_method = _normalize_method(tokens[0])
         if maybe_method and len(tokens) == 1:
             CURRENT_METHOD = maybe_method
             _send_text(f"Ok: {_cap(CURRENT_METHOD)}")
             return
-        # ไม่มี IP
+
         _send_text("Error: No IP specified")
         return
 
-    # กรณี "/SID <IP>" อย่างเดียว
+    # "/SID <IP>" อย่างเดียว
     if cmd is None and ip and len(tokens) == 1:
         _send_text("Error: No command found.")
         return
 
-    # มี method + IP + command แล้ว
+    # เตรียมโมดูลปลายทาง
     os.environ["ROUTER_IP"] = ip
     dev = importlib.reload(rest) if CURRENT_METHOD == "restconf" else importlib.reload(net)
 
@@ -163,57 +189,44 @@ def _handle_message(message_text: str):
             if "successfully" in low:
                 _send_text(f"{base_msg} using {_cap(CURRENT_METHOD)}")
             else:
-                # ตัวอย่างระบุ disable ล้มเหลวให้ใส่ (checked by ...)
                 if cmd == "disable" and ("cannot" in low or "not found" in low):
                     _send_text(f"{base_msg} (checked by {_cap(CURRENT_METHOD)})")
                 else:
                     _send_text(base_msg)
 
     elif cmd == "gigabit_status":
-        # Netmiko อ่าน ROUTER_IP จาก ENV เช่นกัน
         importlib.reload(nm)
         try:
-            ans = nm.gigabit_status()
+            ans_text = nm.gigabit_status()
         except Exception as e:
-            ans = f"Error executing gigabit_status: {e}"
-        _send_text(ans)
+            ans_text = f"Error executing gigabit_status: {e}"
+        _send_text(ans_text)
 
     elif cmd == "showrun":
-        result = ans.showrun()
+        # >>> เปลี่ยนตรงนี้: ส่ง ip เข้า ans.showrun(ip)
+        result = ans.showrun(ip)
         if isinstance(result, str) and result.endswith(".txt") and os.path.exists(result):
             _send_file_with_text("show running config", result)
         else:
             _send_text(result if isinstance(result, str) else str(result))
 
-    elif cmd == "motd":
-        # รองรับ /<SID> <IP> motd [ข้อความ...]
-        try:
-            # รวมข้อความหลัง motd ถ้ามี
-            msg_text = " ".join(tokens[2:]) if len(tokens) > 2 else ""
-            if msg_text:
-                # ตั้ง MOTD ใหม่
-                result = ans.handle_command(f"/{STUDENT_ID} {ip} motd {msg_text}")
-            else:
-                # อ่าน MOTD ปัจจุบัน
-                result = ans.handle_command(f"/{STUDENT_ID} {ip} motd")
-            _send_text(result)
-        except Exception as e:
-            _send_text(f"Error executing motd: {e}")
-
     else:
         _send_text("Error: No command or unknown command")
-    
+
 
 def main():
-    # วนลูปอ่านข้อความล่าสุดจากห้อง Webex
     while True:
-        time.sleep(1)  # กัน rate limit
+        time.sleep(1)
 
         get_params = {"roomId": ROOM_ID, "max": 1}
         headers = {"Authorization": AUTH_HEADER}
 
-        r = requests.get("https://webexapis.com/v1/messages",
-                         params=get_params, headers=headers, verify=False)
+        r = requests.get(
+            "https://webexapis.com/v1/messages",
+            params=get_params,
+            headers=headers,
+            verify=False
+        )
         if r.status_code != 200:
             raise Exception(f"Incorrect reply from Webex Teams API. Status code: {r.status_code}")
 
@@ -222,8 +235,8 @@ def main():
         if not items:
             continue
 
-        msg = items[0]
-        text = msg.get("text", "") or ""
+        message = items[0]
+        text = message.get("text", "") or ""
         print("Received message:", text)
         _handle_message(text)
 

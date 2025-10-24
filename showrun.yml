@@ -1,17 +1,26 @@
 ---
-- name: Get running-config from Cisco Router
-  hosts: routers
+- name: Show running-config from Cisco IOS device
+  hosts: all
   gather_facts: no
+  connection: ansible.netcommon.network_cli
 
   tasks:
-    - name: Collect running-config
+    - name: Run 'show running-config'
       cisco.ios.ios_command:
         commands:
           - show running-config
-      register: run_config
+      register: showrun_output
 
-    - name: Save running-config to local file
+    - name: Ensure output directory exists
+      ansible.builtin.file:
+        path: outputs
+        state: directory
+
+    - name: Save running-config to file (unique per device)
       ansible.builtin.copy:
-        content: "{{ run_config.stdout[0] }}"
+        content: "{{ showrun_output.stdout[0] }}"
         dest: "outputs/showrun_{{ inventory_hostname }}.txt"
-      delegate_to: localhost
+
+    - name: Display summary
+      debug:
+        msg: "Saved running-config to outputs/showrun_{{ inventory_hostname }}.txt"
