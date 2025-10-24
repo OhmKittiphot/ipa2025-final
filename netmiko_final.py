@@ -1,6 +1,6 @@
 from netmiko import ConnectHandler
 from pprint import pprint
-import os
+import os, re
 
 device_ip = os.getenv("ROUTER_IP", "")
 username  = os.getenv("ROUTER_USER", "")
@@ -49,16 +49,15 @@ def gigabit_status():
 
 def read_motd(ip: str, username: str = None, password: str = None) -> str:
     """
-    อ่านค่า MOTD:
-      - ถ้าเจอ MOTD -> คืนข้อความ
-      - ถ้าไม่เจอ/มี error ใด ๆ -> คืน "Error: No MOTD Configured"
+    อ่าน MOTD แบบดิบ (ไม่ใช้ TextFSM) เพื่อไม่ให้คำ/ช่องว่างหาย
+    ขั้นตอน:
+      1) terminal length 0 (กัน More)
+      2) ถ้า ROUTER_SECRET มี -> เข้า enable
+      3) ลอง show banner motd ก่อน
+      4) ถ้ายังไม่ได้ ค่อยดึงจาก running-config โดยจับระหว่าง delimiter
     """
     if not ip:
-        # ถ้าต้องการให้มาตรฐานทุก error เป็นข้อความเดียว ก็ส่งตรงนี้ด้วย
         return "Error: No MOTD Configured"
-
-    import os, re
-    from netmiko import ConnectHandler
 
     dev = {
         "device_type": "cisco_ios",
@@ -67,34 +66,82 @@ def read_motd(ip: str, username: str = None, password: str = None) -> str:
         "password": password or os.getenv("ROUTER_PASS", "cisco"),
         "fast_cli": True,
     }
+    secret = os.getenv("ROUTER_SECRET", "").strip()
+
+    import re
+    from netmiko import ConnectHandler
+
+    def _strip_delim_lines(lines):
+        # ตัดเฉพาะบรรทัดหัว/ท้ายที่เป็น delimiter (เช่น ^C, #, $, ! ฯลฯ) แต่คงช่องว่างภายในไว้ครบ
+        if not lines:
+            return lines
+        # ตัดหัว
+        if lines[0].strip() in ("^C", "#", "$", "!", "%"):
+            lines = lines[1:]
+        # ตัดท้าย
+        if lines and lines[-1].strip() in ("^C", "#", "$", "!", "%"):
+            lines = lines[:-1]
+        return lines
+
+    def _cleanup(s: str) -> str:
+        # ลบ CR, คง whitespace ภายใน
+        return (s or "").replace("\r", "")
 
     try:
         with ConnectHandler(**dev) as ssh:
-            # 1) ลองอ่านตรง ๆ
-            out = ssh.send_command("show banner motd", use_textfsm=True)
+            # กัน pager และเข้า enable หากมี secret
+            ssh.send_command("terminal length 0", expect_string=r"#")
+            if secret:
+                try:
+                    ssh.enable()
+                except Exception:
+                    pass  # ถ้า user เดิมเป็น priv 15 อยู่แล้ว ก็ข้ามได้
+
+            # 1) พยายามใช้ show banner motd ก่อน (ง่ายและครบสุด)
+            raw = ssh.send_command("show banner motd", use_textfsm=False)
+            raw = _cleanup(raw)
+            # บางรุ่นจะ echo คำสั่งบรรทัดแรก ให้ลบถ้าตรงกัน
+            if raw.startswith("show banner motd"):
+                raw = raw.split("\n", 1)[1] if "\n" in raw else ""
+
+            lines = [l.rstrip("\n") for l in raw.splitlines()]
+            lines = _strip_delim_lines(lines)
+            motd = "\n".join(lines).rstrip()
+
+            if motd:  # ได้แล้ว จบเลย
+                return motd
+
+            # 2) Fallback: ดึงจาก running-config แบบ section
+            out = ssh.send_command("show running-config | section ^banner motd", use_textfsm=False)
+            out = _cleanup(out)
+            if not out or "Invalid input" in out:
+                # IOS บางตัวไม่รองรับ section ใช้ทั้งไฟล์แล้ว regex เอา
+                out = ssh.send_command("show running-config", use_textfsm=False)
+                out = _cleanup(out)
+
             text = out if isinstance(out, str) else str(out)
-            text = (text or "").strip()
+            if "banner motd" not in text:
+                return "Error: No MOTD Configured"
 
-            if text and "Invalid input" not in text and "Incomplete" not in text:
-                # ลบ delimiter เช่น ^C ถ้ามี
-                text_clean = re.sub(r"(?s)^\s*\^C\s*|\s*\^C\s*$", "", text).strip()
-                if text_clean:
-                    return text_clean
+            # จับรูปแบบ banner motd <DELIM> ... <DELIM>
+            # <DELIM> อาจเป็น ^C, #, $, ! หรืออักขระชุดอื่น
+            m = re.search(r"banner\s+motd\s+(\S+)\s*\n(.*?)\n\1", text, flags=re.S)
+            if not m:
+                # บางเคส delimiter ต่อท้ายในบรรทัดเดียวกัน ให้ดึงแบบหลวมขึ้น
+                m = re.search(r"banner\s+motd\s+(\S+)\s*\n(.*)", text, flags=re.S)
+                if m:
+                    delim = m.group(1)
+                    body = m.group(2)
+                    # ตัดจนถึง delimiter ถัดไป
+                    body = body.split(f"\n{delim}\n")[0]
+                    motd2 = body.rstrip()
+                    return motd2 if motd2.strip() else "Error: No MOTD Configured"
+                return "Error: No MOTD Configured"
 
-            # 2) Fallback: หาใน running-config
-            run = ssh.send_command("show running-config | s banner motd", use_textfsm=True)
-            run = run if isinstance(run, str) else str(run)
-
-            m = re.search(r"banner\s+motd\s+(\S)\n(.*?)\n\1", run, flags=re.S)
-            if m:
-                motd_body = (m.group(2) or "").strip()
-                if motd_body:
-                    return motd_body
-
-            # ไม่เจอ MOTD
-            return "Error: No MOTD Configured"
+            delim = m.group(1)
+            body = m.group(2)
+            # คืนค่าแบบคงรูป
+            return body.rstrip() if body.strip() else "Error: No MOTD Configured"
 
     except Exception:
-        # ไม่ว่า error อะไร ให้แสดงข้อความเดียวตามที่ต้องการ
         return "Error: No MOTD Configured"
-

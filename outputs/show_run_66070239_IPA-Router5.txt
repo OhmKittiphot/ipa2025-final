@@ -1,0 +1,210 @@
+Building configuration...
+
+Current configuration : 4473 bytes
+!
+! Last configuration change at 16:29:03 UTC Fri Oct 24 2025 by admin
+!
+version 16.9
+service config
+service timestamps debug datetime msec
+service timestamps log datetime msec
+platform qfp utilization monitor load 80
+no platform punt-keepalive disable-kernel-core
+platform console virtual
+!
+hostname IPA-Router5
+!
+boot-start-marker
+boot-end-marker
+!
+!
+!
+no aaa new-model
+!
+!
+!
+!
+!
+!
+!
+no ip domain lookup
+!
+!
+!
+login on-success log
+!
+!
+!
+!
+!
+!
+!
+subscriber templating
+! 
+! 
+! 
+! 
+!
+multilink bundle-name authenticated
+!
+!
+!
+!
+!
+crypto pki trustpoint TP-self-signed-1034174530
+ enrollment selfsigned
+ subject-name cn=IOS-Self-Signed-Certificate-1034174530
+ revocation-check none
+ rsakeypair TP-self-signed-1034174530
+!
+!
+crypto pki certificate chain TP-self-signed-1034174530
+ certificate self-signed 01
+  30820330 30820218 A0030201 02020101 300D0609 2A864886 F70D0101 05050030 
+  31312F30 2D060355 04031326 494F532D 53656C66 2D536967 6E65642D 43657274 
+  69666963 6174652D 31303334 31373435 3330301E 170D3235 31303232 32333333 
+  34395A17 0D333030 31303130 30303030 305A3031 312F302D 06035504 03132649 
+  4F532D53 656C662D 5369676E 65642D43 65727469 66696361 74652D31 30333431 
+  37343533 30308201 22300D06 092A8648 86F70D01 01010500 0382010F 00308201 
+  0A028201 0100B76B FBAC47A0 F07B82C7 AE26FB00 5AD200AF FC831C4A E539D2E6 
+  D92B3246 0757D4F5 9B6B42FA 53A39FBB 7AD86A14 A70C3F72 8580D46F 7AD724DF 
+  8AE0BD10 11921561 ECBBD726 2885A048 F02F8CA2 593296E3 1B5540C9 A6154B90 
+  11830DC8 168345D0 16B3333C 9570BB64 49FA80A0 B6A70CA9 1034487C CA0A07F9 
+  D929AD19 6E406BDB 0AE766EB 7FB38CB3 DB411116 DCE5103F A086265A CFB4B695 
+  BF591153 A3B2C68C 1B07DC12 6125F966 770F6563 76297C99 0B8E63BD 8219F846 
+  C42C3319 31FC756B 98556268 A0B81DC3 04752ECF 89D97C0C 5FD9AC19 9C7D24C1 
+  772D9BFC 751ACFAA 8AC2B582 86518F10 A63A368D 5E9754D8 8EC2BD6A 867C0E83 
+  1044985A 689D0203 010001A3 53305130 0F060355 1D130101 FF040530 030101FF 
+  301F0603 551D2304 18301680 143C0727 995C6D7E 006A7117 8E01FEF6 CFFB694D 
+  8C301D06 03551D0E 04160414 3C072799 5C6D7E00 6A71178E 01FEF6CF FB694D8C 
+  300D0609 2A864886 F70D0101 05050003 82010100 29ECA405 5EC4DB13 D0BD3455 
+  692201C5 82A7AE5C E3945FD2 9D5290D2 32A49C5D 81A02FB7 80BC940A 21468866 
+  CF6C0D38 6833075D 4632AE91 C8DA936D 25023A32 4E3D2630 DD772884 E5D1422E 
+  38428B30 64AA5406 09B88DA2 F07D6B7B 8AAE8BE9 48876A7E 246CEF71 E261DC4A 
+  4E12C41E 436936B9 BA65CE4E EE9BAD6D 2DC0DA51 6D567B2D 066A4C90 DE7586E5 
+  EE1B02CE 6E3232DF EE26325A 8E7AAB70 08D21E5E 821C15BF 56E96FF7 B2BBBB65 
+  0C69AD42 470680ED 970F8DF8 E9A829DD C9791E22 6CEE83F4 2A7C69B3 2DF707B2 
+  719FD53B 1694413B 6E053E39 92F7448C A32109E1 C80B9ABC 8845A8BE F0F58AF1 
+  38546EDB A183E397 E8345BA6 DF44F8C5 E861A852
+  	quit
+!
+!
+!
+!
+!
+!
+!
+!
+license udi pid CSR1000V sn 9N4F4DO49X9
+no license smart enable
+diagnostic bootup level minimal
+!
+spanning-tree extend system-id
+!
+netconf-yang
+!
+restconf
+!
+username admin privilege 15 secret 5 $1$/vWQ$gLqmZhTCtOtBoaIjQUBo40
+!
+redundancy
+!
+!
+!
+!
+!
+!
+! 
+!
+!
+!
+!
+!
+!
+!
+!
+!
+!
+!
+!
+! 
+! 
+!
+!
+interface Loopback66070139
+ description Created by NETCONF for 66070139
+ ip address 172.1.39.1 255.255.255.0
+!
+interface Loopback66070179
+ description My final2024 loopback
+ ip address 172.1.79.1 255.255.255.0
+ shutdown
+!
+interface Loopback66070191
+ description Loopback interface for student 66070191 created by NETCONF
+ ip address 172.1.91.1 255.255.255.0
+!
+interface Loopback66070217
+ description Anawat Wongprachanukul 66070217 Loopback interface
+ ip address 172.2.17.1 255.255.255.0
+!
+interface Loopback66070244
+ ip address 172.2.44.1 255.255.255.0
+!
+interface Loopback66070276
+ description Created by RESTCONF
+ ip address 172.2.76.1 255.255.255.0
+!
+interface Loopback66070291
+ description Created by NPA2024 Final Bot
+ ip address 172.2.91.1 255.255.255.0
+!
+interface Loopback66070305
+ ip address 172.30.5.1 255.255.255.0
+!
+interface Loopback66070315
+ description Student 66070315 loopback
+ ip address 172.3.15.1 255.255.255.0
+!
+interface GigabitEthernet1
+ ip address 10.0.15.65 255.255.255.0
+ negotiation auto
+ no mop enabled
+ no mop sysid
+!
+ip forward-protocol nd
+ip http server
+ip http authentication local
+ip http secure-server
+ip http client source-interface GigabitEthernet1
+ip route 0.0.0.0 0.0.0.0 10.0.15.1
+!
+ip ssh version 2
+!
+!
+!
+!
+!
+control-plane
+!
+!
+!
+!
+!
+banner motd ^CAuthorized^C
+!
+line con 0
+ stopbits 1
+line vty 0 4
+ login local
+ transport input ssh
+line vty 5 90
+ login local
+ transport input ssh
+!
+!
+!
+!
+!
+!
+end
