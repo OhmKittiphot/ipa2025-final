@@ -21,8 +21,8 @@ from requests_toolbelt import MultipartEncoder  # สำหรับส่งไ
 # โมดูลงานแต่ละส่วน
 import restconf_final as rest         # ต้องมีไฟล์ restconf_final.py
 import netconf_final as net           # ต้องมีไฟล์ netconf_final.py
-import netmiko_final as nm            # ต้องมีไฟล์ netmiko_final.py
-import ansible_final as ans           # ต้องมีไฟล์ ansible_final.py
+import netmiko_final as nm            # ฟังก์ชัน gigabit_status
+import ansible_final as ans           # ฟังก์ชัน showrun
 
 requests.packages.urllib3.disable_warnings()  # ปิด SSL warnings
 
@@ -56,6 +56,7 @@ def _cap(s: str):
 
 
 def _send_text(text: str):
+    """ส่งข้อความธรรมดาเข้า Webex room"""
     postData = json.dumps({"roomId": ROOM_ID, "text": text})
     headers = {"Authorization": AUTH_HEADER, "Content-Type": "application/json"}
     r = requests.post("https://webexapis.com/v1/messages", data=postData, headers=headers, verify=False)
@@ -64,6 +65,7 @@ def _send_text(text: str):
 
 
 def _send_file_with_text(text: str, filepath: str):
+    """ส่งข้อความ + แนบไฟล์เข้า Webex room"""
     filename = os.path.basename(filepath)
     fileobject = open(filepath, "rb")
     filetype = "text/plain"
@@ -91,68 +93,57 @@ def _send_file_with_text(text: str, filepath: str):
 
 def _handle_message(message_text: str):
     """
-    สเปคข้อความ:
-      - ตั้ง method: "/<SID> restconf" หรือ "/<SID> netconf" -> "Ok: Restconf/Netconf"
-      - ใช้งาน: "/<SID> <IP> <command>"
+    ประมวลผลข้อความจากห้อง Webex ตามสเปค:
+      - ต้องตั้ง method ก่อน: "/<SID> restconf" หรือ "/<SID> netconf" -> "Ok: Restconf/Netconf"
+      - คำสั่งใช้งาน: "/<SID> <IP> <command>"
         * ถ้าไม่มี method -> "Error: No method specified"
         * ถ้าไม่มี IP -> "Error: No IP specified"
         * ถ้าใส่แค่ IP -> "Error: No command found."
-      - success เติม "using <Method>" ยกเว้น status เติม "(checked by <Method>)"
+      - เติม "using <Method>" เมื่อ success (ยกเว้น status ให้เติม "(checked by <Method>)")
+      - บาง failure (disable) ให้เติม "(checked by <Method>)" ตามตัวอย่าง
     """
     global CURRENT_METHOD
 
     # ต้องเริ่มด้วย /<SID>
     if not message_text.startswith(f"/{STUDENT_ID}"):
-        return
+        return  # ข้ามข้อความอื่น
 
     parts = message_text.strip().split()
-    tokens = parts[1:]
+    tokens = parts[1:]  # ตัด "/<SID>" ออก
 
     if not tokens:
         _send_text("Error: No method specified")
         return
 
-    # ตั้ง method
+    # helper
+    def _is_ip(s):
+        return IPV4_RE.match(s or "") is not None
+
+    def _is_no_method_cmd(s):
+        return (s or "").lower().strip() in ("showrun", "gigabit_status")
+
+    # 1) ผู้ใช้ตั้ง method: "/SID restconf" หรือ "/SID netconf"
     maybe_method_only = _normalize_method(tokens[0])
     if len(tokens) == 1 and maybe_method_only:
         CURRENT_METHOD = maybe_method_only
         _send_text(f"Ok: {_cap(CURRENT_METHOD)}")
         return
 
-    # ----- NEW: MOTD โดยไม่ต้องตั้ง method -----
-    # /SID <IP> motd [<text>]
-    if IPV4_RE.match(tokens[0]) and len(tokens) >= 2 and tokens[1].lower() == "motd":
-        ip = tokens[0]
-        if len(tokens) > 2:
-            # set MOTD
-            text = " ".join(tokens[2:])
-            try:
-                result = ans.set_motd(ip, text)
-            except Exception as e:
-                result = f"Error: {e}"
-            _send_text(result)
-            return
-        else:
-            # read MOTD
-            try:
-                motd_text = nm.read_motd(ip)
-            except Exception as e:
-                motd_text = f"Error: {e}"
-            _send_text(motd_text)
-            return
-    # ----- END NEW -----
+    # 2) ถ้าเป็น "/SID <IP> <cmd>" และ <cmd> เป็น showrun/gigabit_status ให้ผ่านได้โดยไม่ต้องตั้ง method
+    bypass_method_check = False
+    if len(tokens) >= 2 and _is_ip(tokens[0]) and _is_no_method_cmd(tokens[1]):
+        bypass_method_check = True
 
-    # ยังไม่ตั้ง method
-    if not CURRENT_METHOD:
+    # 3) ถ้าไม่ bypass และยังไม่ตั้ง method -> error
+    if not bypass_method_check and not CURRENT_METHOD:
         _send_text("Error: No method specified")
         return
 
-    # โหมดคำสั่ง: "/SID <IP> <command>" หรือ "/SID <IP>"
+    # --- เริ่ม parse โหมดคำสั่ง ---
     ip = None
     cmd = None
 
-    # โทเค็นแรกต้องเป็น IP
-    if IPV4_RE.match(tokens[0]):
+    if _is_ip(tokens[0]):
         ip = tokens[0]
         if len(tokens) >= 2:
             cmd = tokens[1].lower().strip()
@@ -166,16 +157,16 @@ def _handle_message(message_text: str):
         _send_text("Error: No IP specified")
         return
 
-    # "/SID <IP>" อย่างเดียว
     if cmd is None and ip and len(tokens) == 1:
         _send_text("Error: No command found.")
         return
 
-    # เตรียมโมดูลปลายทาง
+    # ตั้ง ENV ให้โมดูลอื่นใช้ IP นี้
     os.environ["ROUTER_IP"] = ip
-    dev = importlib.reload(rest) if CURRENT_METHOD == "restconf" else importlib.reload(net)
 
+    # ====== กลุ่มคำสั่งที่ขึ้นกับ method (restconf/netconf) ======
     if cmd in ("create", "delete", "enable", "disable", "status"):
+        dev = importlib.reload(rest) if CURRENT_METHOD == "restconf" else importlib.reload(net)
         try:
             base_msg = getattr(dev, cmd)()
         except Exception as e:
@@ -194,17 +185,17 @@ def _handle_message(message_text: str):
                 else:
                     _send_text(base_msg)
 
+    # ====== คำสั่งที่ "ไม่ต้องมี method" ======
     elif cmd == "gigabit_status":
         importlib.reload(nm)
         try:
-            ans_text = nm.gigabit_status()
+            gig_result = nm.gigabit_status()
         except Exception as e:
-            ans_text = f"Error executing gigabit_status: {e}"
-        _send_text(ans_text)
+            gig_result = f"Error executing gigabit_status: {e}"
+        _send_text(gig_result)
 
     elif cmd == "showrun":
-        # >>> เปลี่ยนตรงนี้: ส่ง ip เข้า ans.showrun(ip)
-        result = ans.showrun(ip)
+        result = ans.showrun()
         if isinstance(result, str) and result.endswith(".txt") and os.path.exists(result):
             _send_file_with_text("show running config", result)
         else:
@@ -215,8 +206,9 @@ def _handle_message(message_text: str):
 
 
 def main():
+    # วนลูปอ่านข้อความล่าสุดจากห้อง Webex แล้วประมวลผล
     while True:
-        time.sleep(1)
+        time.sleep(1)  # กัน rate limit
 
         get_params = {"roomId": ROOM_ID, "max": 1}
         headers = {"Authorization": AUTH_HEADER}

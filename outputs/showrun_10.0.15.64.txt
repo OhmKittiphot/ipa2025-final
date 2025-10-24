@@ -1,0 +1,210 @@
+Building configuration...
+
+Current configuration : 4508 bytes
+!
+! Last configuration change at 15:18:22 UTC Fri Oct 24 2025 by NETCONF
+!
+version 16.9
+service timestamps debug datetime msec
+service timestamps log datetime msec
+platform qfp utilization monitor load 80
+no platform punt-keepalive disable-kernel-core
+platform console virtual
+!
+hostname IPA-Router4
+!
+boot-start-marker
+boot-end-marker
+!
+!
+!
+no aaa new-model
+!
+!
+!
+!
+!
+!
+!
+no ip domain lookup
+!
+!
+!
+login on-success log
+!
+!
+!
+!
+!
+!
+!
+subscriber templating
+! 
+! 
+! 
+! 
+!
+multilink bundle-name authenticated
+!
+!
+!
+!
+!
+crypto pki trustpoint TP-self-signed-2576815546
+ enrollment selfsigned
+ subject-name cn=IOS-Self-Signed-Certificate-2576815546
+ revocation-check none
+ rsakeypair TP-self-signed-2576815546
+!
+!
+crypto pki certificate chain TP-self-signed-2576815546
+ certificate self-signed 01
+  30820330 30820218 A0030201 02020101 300D0609 2A864886 F70D0101 05050030 
+  31312F30 2D060355 04031326 494F532D 53656C66 2D536967 6E65642D 43657274 
+  69666963 6174652D 32353736 38313535 3436301E 170D3235 31303232 32333137 
+  31365A17 0D333030 31303130 30303030 305A3031 312F302D 06035504 03132649 
+  4F532D53 656C662D 5369676E 65642D43 65727469 66696361 74652D32 35373638 
+  31353534 36308201 22300D06 092A8648 86F70D01 01010500 0382010F 00308201 
+  0A028201 0100C282 6B53FAC8 4D7DC9DD C30F52CF DF3C7EDE 6588730D F8ED628D 
+  07ED85DB 33679071 020B9D22 F30EA26A 5CF10581 81FF918C F534AB8B F95921D9 
+  C20C7E75 0773BE06 91E2A1E6 B305D3D1 2B0AE6C6 D88A4B31 565EDF82 BE3AE479 
+  649A872D 0FD9AD76 86D127FB 6905750D F4EADB1C 6DDD4150 33A6BC7C 237A279A 
+  C18896F3 184B5349 3D27B7AD 6476C3D8 1C7F5527 462C21F1 034ACA7F CB8F83BE 
+  AB62487D C2D196B3 F9E62734 8C1D0611 05AC4FF9 D7412BB6 F3A2C035 47DC388D 
+  F9D29232 22792C48 75B27008 0B6DF57C FD3338B9 51A067C8 1C872823 4AB17569 
+  F364D3C3 596B6858 B0207EE3 18168091 07724F71 E65601E9 38BCA1AA 6D46E512 
+  549BB9A0 0FA10203 010001A3 53305130 0F060355 1D130101 FF040530 030101FF 
+  301F0603 551D2304 18301680 1487BEE8 187A933A 5D07261E 6DFC2985 F320A351 
+  91301D06 03551D0E 04160414 87BEE818 7A933A5D 07261E6D FC2985F3 20A35191 
+  300D0609 2A864886 F70D0101 05050003 82010100 437B252B E6EC7B54 9718A5B3 
+  4430139F 4A6AED38 103E8392 D3FDBD39 1B19AE10 CD1AED09 B843D717 38E01445 
+  04B4126B AEC438B6 85D07B90 BFB3519B 1A260765 1D53F7EC BDE1A244 E2A89454 
+  40F12B97 FD0BB0E3 EBBDE8F9 CA05B7F6 072D509E E6ECEA97 A05A0439 1C88FDA8 
+  A1C54361 FF38214F 5E133A20 1289D8E4 2213A5A3 8846AD4A 02C9EF35 A348AC10 
+  AC3FE4FC D02D87BF C582A166 83088F74 454C6128 44A252B4 BACA0FD9 A076CBD0 
+  126433B3 D481949A 7BDD2029 8DC4F69E C5A4D74C A002FAD8 CAD00D4B C921AFF0 
+  BAED02A0 48DEFF52 924ED145 000938C0 6D3542D6 2165B448 3AD78738 230DE6AC 
+  8F3CD9F0 8A31B467 86B6F663 FF5BE7CE C5965D9F
+  	quit
+!
+!
+!
+!
+!
+!
+!
+!
+license udi pid CSR1000V sn 9ZB4XFKEGTU
+no license smart enable
+diagnostic bootup level minimal
+!
+spanning-tree extend system-id
+!
+netconf-yang
+!
+restconf
+!
+username admin privilege 15 secret 5 $1$mHHz$xsaK3DX1BU/gsdTunZ3881
+!
+redundancy
+!
+!
+!
+!
+!
+!
+! 
+!
+!
+!
+!
+!
+!
+!
+!
+!
+!
+!
+!
+! 
+! 
+!
+!
+interface Loopback66070024
+ description Interface for student 66070024
+ ip address 172.0.24.1 255.255.255.0
+!
+interface Loopback66070055
+ ip address 172.0.55.1 255.255.255.0
+ shutdown
+!
+interface Loopback66070101
+ description Created by 66070101
+ ip address 172.1.1.1 255.255.255.0
+!
+interface Loopback66070112
+ description Created via RESTCONF
+ ip address 172.1.12.1 255.255.255.0
+!
+interface Loopback66070139
+ description Created by NETCONF for 66070139
+ ip address 172.1.39.1 255.255.255.0
+!
+interface Loopback66070179
+ description My final2024 loopback
+ ip address 172.1.79.1 255.255.255.0
+!
+interface Loopback66070191
+ description Loopback interface for student 66070191 created by NETCONF
+ ip address 172.1.91.1 255.255.255.0
+!
+interface Loopback66070244
+ ip address 172.2.44.1 255.255.255.0
+!
+interface Loopback66070291
+ description Created by NPA2024 Final Bot
+ ip address 172.2.91.1 255.255.255.0
+!
+interface GigabitEthernet1
+ ip address 10.0.15.64 255.255.255.0
+ negotiation auto
+ no mop enabled
+ no mop sysid
+!
+ip forward-protocol nd
+ip http server
+ip http authentication local
+ip http secure-server
+ip http client source-interface GigabitEthernet1
+ip tftp source-interface GigabitEthernet1
+ip route 0.0.0.0 0.0.0.0 10.0.15.1
+!
+ip ssh version 2
+!
+!
+!
+!
+!
+control-plane
+!
+!
+!
+!
+!
+banner motd ^CAuthorized users only! Managed by 66070077^C
+!
+line con 0
+ stopbits 1
+line vty 0 4
+ login local
+ transport input ssh
+line vty 5 90
+ login local
+ transport input ssh
+!
+!
+!
+!
+!
+!
+end
