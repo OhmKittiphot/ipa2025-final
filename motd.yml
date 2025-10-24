@@ -1,0 +1,21 @@
+---
+- name: Configure MOTD banner on Cisco IOS
+  hosts: all
+  gather_facts: no
+  connection: ansible.netcommon.network_cli
+
+  vars:
+    motd_text: "{{ lookup('env', 'MOTD_TEXT') | default(motd_text_cli | default(''), true) }}"
+
+  tasks:
+    - name: Ensure MOTD banner is set when provided
+      cisco.ios.ios_banner:
+        banner: motd
+        text: "{{ motd_text }}"
+        state: present
+      when: motd_text | length > 0
+
+    - name: Fail if no motd_text was provided
+      fail:
+        msg: "Error: No MOTD text provided"
+      when: motd_text | length == 0
