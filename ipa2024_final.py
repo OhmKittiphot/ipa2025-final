@@ -185,9 +185,24 @@ def _handle_message(message_text: str):
         else:
             _send_text(result if isinstance(result, str) else str(result))
 
+    elif cmd == "motd":
+        # รองรับ /<SID> <IP> motd [ข้อความ...]
+        try:
+            # รวมข้อความหลัง motd ถ้ามี
+            msg_text = " ".join(tokens[2:]) if len(tokens) > 2 else ""
+            if msg_text:
+                # ตั้ง MOTD ใหม่
+                result = ans.handle_command(f"/{STUDENT_ID} {ip} motd {msg_text}")
+            else:
+                # อ่าน MOTD ปัจจุบัน
+                result = ans.handle_command(f"/{STUDENT_ID} {ip} motd")
+            _send_text(result)
+        except Exception as e:
+            _send_text(f"Error executing motd: {e}")
+
     else:
         _send_text("Error: No command or unknown command")
-
+    
 
 def main():
     # วนลูปอ่านข้อความล่าสุดจากห้อง Webex
