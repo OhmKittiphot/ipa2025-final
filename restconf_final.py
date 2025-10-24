@@ -2,14 +2,14 @@ import json
 import os
 import requests
 
-
-requests.packages.urllib3.disable_warnings() #ปิดคำเตือน SSL
+# ปิดคำเตือน SSL
+requests.packages.urllib3.disable_warnings()
 
 # ====== ENV & Base URLs ======
-ROUTER_IP   = os.getenv("ROUTER_IP", "10.0.15.61")   # .61–.65 หรือ .181–.184 ตาม lab
+ROUTER_IP   = os.getenv("ROUTER_IP", "10.0.15.61")   # IP ของ Router จะถูกเปลี่ยนทุกครั้งจาก ipa2024_final.py
 ROUTER_USER = os.getenv("ROUTER_USER", "admin")
 ROUTER_PASS = os.getenv("ROUTER_PASS", "cisco")
-STUDENT_ID  = os.getenv("STUDENT_ID", "66070239")    # ใช้สร้างชื่อ Loopback<studentID>
+STUDENT_ID  = os.getenv("STUDENT_ID", "66070123")    # ใช้สร้างชื่อ Loopback<studentID>
 
 # RESTCONF base
 BASE = f"https://{ROUTER_IP}/restconf"
@@ -29,15 +29,17 @@ headers = {
 }
 basicauth = (ROUTER_USER, ROUTER_PASS)
 
-# คำนวณ 172.x.y.1/24 จาก 3 หลักท้ายของ student_id
+# ====== คำนวณ IP Loopback จาก Student ID ======
+# เช่น STUDENT_ID = 66070123 -> last3 = 123 -> ip = 172.1.23.1
 last3 = STUDENT_ID[-3:]
 x = int(last3[0])
 y = int(last3[1:])
 ip = f"172.{x}.{y}.1"
 netmask = "255.255.255.0"
 
+
+# =================== Function: CREATE ===================
 def create():
-      # YANG(JSON) payload ตาม ietf-interfaces + ietf-ip
     yangConfig = {
         "ietf-interfaces:interface": {
             "name": IFNAME,
@@ -52,7 +54,6 @@ def create():
         }
     }
 
-    # POST ไปที่ collection (/interfaces) เพื่อสร้าง resource ใหม่
     resp = requests.post(
         API_IF,
         data=json.dumps(yangConfig),
@@ -63,16 +64,15 @@ def create():
     )
 
     if 200 <= resp.status_code <= 299:
-        print("STATUS OK: {}".format(resp.status_code))
         return f"Interface loopback {STUDENT_ID} is created successfully"
     elif resp.status_code == 409:
-        print("ALREADY EXISTS")
         return f"Cannot create: Interface loopback {STUDENT_ID}"
     else:
-        print('Error. Status Code: {}'.format(resp.status_code))
+        return f"Error: Status Code {resp.status_code}"
 
+
+# =================== Function: DELETE ===================
 def delete():
-     # DELETE ที่ resource รายตัว
     resp = requests.delete(
         API_IF_ITEM,
         auth=basicauth,
@@ -82,16 +82,15 @@ def delete():
     )
 
     if 200 <= resp.status_code <= 299:
-        print("STATUS OK: {}".format(resp.status_code))
         return f"Interface loopback {STUDENT_ID} is deleted successfully"
     elif resp.status_code == 404:
-        print("NOT FOUND")
         return f"Cannot delete: Interface loopback {STUDENT_ID}"
     else:
-        print('Error. Status Code: {}'.format(resp.status_code))
+        return f"Error: Status Code {resp.status_code}"
 
+
+# =================== Function: ENABLE ===================
 def enable():
-    # PATCH เฉพาะ field enabled = True
     yangConfig = {
         "ietf-interfaces:interface": {
             "enabled": True
@@ -108,17 +107,15 @@ def enable():
     )
 
     if 200 <= resp.status_code <= 299:
-        print("STATUS OK: {}".format(resp.status_code))
         return f"Interface loopback {STUDENT_ID} is enabled successfully"
     elif resp.status_code == 404:
-        print("NOT FOUND")
         return f"Cannot enable: Interface loopback {STUDENT_ID}"
     else:
-        print('Error. Status Code: {}'.format(resp.status_code))
+        return f"Error: Status Code {resp.status_code}"
 
 
+# =================== Function: DISABLE ===================
 def disable():
-    # PATCH เฉพาะ field enabled = False
     yangConfig = {
         "ietf-interfaces:interface": {
             "enabled": False
@@ -135,17 +132,16 @@ def disable():
     )
 
     if 200 <= resp.status_code <= 299:
-        print("STATUS OK: {}".format(resp.status_code))
-        # ตามโจทย์ระบุคำนี้
         return f"Interface loopback {STUDENT_ID} is shutdowned successfully"
     elif resp.status_code == 404:
-        print("NOT FOUND")
         return f"Cannot shutdown: Interface loopback {STUDENT_ID}"
     else:
-        print('Error. Status Code: {}'.format(resp.status_code))
+        return f"Error: Status Code {resp.status_code}"
 
+
+# =================== Function: STATUS ===================
 def status():
-    # อ่านฝั่ง config เพื่อตรวจว่า interface มีอยู่ไหม + admin (enabled)
+    # อ่านฝั่ง config เพื่อตรวจว่า interface มีอยู่ไหม + admin-status (enabled)
     resp_cfg = requests.get(
         API_IF_ITEM,
         auth=basicauth,
@@ -155,11 +151,9 @@ def status():
     )
 
     if resp_cfg.status_code == 404:
-        print("STATUS NOT FOUND: {}".format(resp_cfg.status_code))
         return f"No Interface loopback {STUDENT_ID}"
     elif not (200 <= resp_cfg.status_code <= 299):
-        print('Error. Status Code (config): {}'.format(resp_cfg.status_code))
-        return
+        return f"Error: Status Code {resp_cfg.status_code}"
 
     cfg_json = resp_cfg.json()
     enabled = cfg_json.get("ietf-interfaces:interface", {}).get("enabled", False)
@@ -179,13 +173,13 @@ def status():
         st_json = resp_st.json()
         oper_status = st_json.get("ietf-interfaces:interface", {}).get("oper-status", None)
 
-    # ตีความตามเงื่อนไขโจทย์
+    # ตีความสถานะ
     if admin_status == "up" and oper_status == "up":
         return f"Interface loopback {STUDENT_ID} is enabled"
     elif admin_status == "down" and (oper_status in (None, "down")):
         return f"Interface loopback {STUDENT_ID} is disabled"
     else:
-        # เผื่อกรณี enabled=True แต่ oper ยัง down ให้ถือว่า disabled
+        # เผื่อกรณี enabled=True แต่ oper ยัง down
         if enabled and oper_status == "down":
             return f"Interface loopback {STUDENT_ID} is disabled"
         return f"Interface loopback {STUDENT_ID} is disabled"
